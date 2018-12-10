@@ -88,7 +88,6 @@ class Source(object):
 
 class QueuedServer(object):
     """ Represents a waiting queue and an associated server.
-
     Attributes:
         env (simpy.Environment):
             Simulation environment
@@ -165,7 +164,6 @@ class QueuedServer(object):
                 self.collision = False
                 yield self.env.timeout(self.random_delay())
 
-
     def put(self, packet):
         self.packet_count += 1
         buffer_futur_size = self.buffer_size + packet.size
@@ -181,7 +179,6 @@ class QueuedServer(object):
 
     def attach(self, destination):
         """ Method to set a destination for the serviced packets
-
         Args:
             destination (QueuedServer || XMonitor):
         """
@@ -217,11 +214,11 @@ class Channel(object):
 
 
 
+
 class QueuedServerMonitor(object):
     """ A monitor for a QueuedServer. Observes the packets in service and in
         the queue and records that info in the sizes[] list. The monitor looks at the queued server
         at time intervals given by the sampling dist.
-
 
         Attributes:
         env (simpy.Environment):
@@ -245,7 +242,6 @@ class QueuedServerMonitor(object):
         self.time_count=0
         self.action= env.process(self.run())
 
-
     def run(self):
         while True:
             yield self.env.timeout(self.sample_distribution())
@@ -255,8 +251,6 @@ class QueuedServerMonitor(object):
             else:
                 total= len(self.queued_server.buffer.items) + self.queued_server.busy
             self.sizes.append(total)
-
-
 
 if __name__=="__main__":
     # Link capacity 64kbps
