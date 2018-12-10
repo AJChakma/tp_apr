@@ -1,3 +1,4 @@
+#!/usr/bin/env python3.7
 """
     Ensimag 2018 TP Perf.
 """
