@@ -14,11 +14,11 @@ class Packet(object):
     Attributes:
         id (int):
             Packet identifier
-        size (int): 
+        size (int):
             Packet size in Bytes.
-        generation_timestamp (float): 
+        generation_timestamp (float):
             Timestamp (simulated time) of packet generation
-        output_timestamp (float): 
+        output_timestamp (float):
             Timestamp (simulated time) when packet leaves a system
     """
     def __init__(self, id, size, generation_timestamp, source):
@@ -31,20 +31,20 @@ class Source(object):
     """ Packet generator
 
     Attributes:
-        env (simpy.Environment): 
+        env (simpy.Environment):
             Simulation environment
-        name (str): 
+        name (str):
             Name of the source
-        gen_distribution (callable): 
+        gen_distribution (callable):
             Function that returns the successive inter-arrival times of the packets
-        size_distribution (callable): 
+        size_distribution (callable):
             Function that returns the successive sizes of the packets
-        init_delay (int): 
+        init_delay (int):
             Starts generation after an initial delay. Default = 0
         destination (object):
             Entity that receives the packets from the generator
-        debug (bool): 
-            Set to true to activate verbose debug 
+        debug (bool):
+            Set to true to activate verbose debug
     """
     def __init__(self, env, name, init_delay=0, gen_distribution=lambda:1, size_distribution=lambda:1000,debug=False):
         self.env=env
@@ -78,34 +78,34 @@ class Source(object):
 
     def attach(self, destination):
         """ Method to set a destination for the generated packets
-        
+
         Args:
-            destination (QueuedServer || XMonitor): 
-        """        
+            destination (QueuedServer || XMonitor):
+        """
         self.destination= destination
 
 
 
 class QueuedServer(object):
     """ Represents a waiting queue and an associated server.
-    
+
     Attributes:
-        env (simpy.Environment): 
+        env (simpy.Environment):
             Simulation environment
         name (str):
             Name of the source
         buffer (simpy.Store):
-            Simpy FIFO queue 
+            Simpy FIFO queue
         buffer_max_size (int):
             Maximum buffer size in bytes
-        buffer_size (int): 
+        buffer_size (int):
             Current size of the buffer in bytes
         service_rate (float):
             Server service rate in byte/sec
         destination (object):
-            Entity that receives the packets from the server 
-        debug (bool): 
-            Set to true to activate verbose debug 
+            Entity that receives the packets from the server
+        debug (bool):
+            Set to true to activate verbose debug
         busy (bool):
             Is set if packet is currently processed by the server
         packet_count (int):
@@ -116,14 +116,14 @@ class QueuedServer(object):
 
     """
 
-    def __init__(self, env, name, channel, buffer_max_size=None, service_rate=1000, 
+    def __init__(self, env, name, channel, buffer_max_size=None, service_rate=1000,
                  debug=False, packet_list=[], random_delay=lambda:uniform(0,1)):
         self.env= env
         self.name= name
         self.channel= channel
         self.buffer= simpy.Store(self.env,capacity=math.inf) # buffer size is limited by put method
         self.buffer_max_size= buffer_max_size
-        self.buffer_size=0  
+        self.buffer_size=0
         self.service_rate= service_rate
         self.destination=None
         self.debug=debug
@@ -158,14 +158,14 @@ class QueuedServer(object):
                 self.channel.packet_list.append(packet)
             else:
                 if self.debug:
-                    print("Packet %d is discarded. Reason: Collision" 
+                    print("Packet %d is discarded. Reason: Collision"
                           % (packet.id))
                 self.packets_drop += 1
                 waiting_packet = packet
                 self.collision = False
                 yield self.env.timeout(self.random_delay())
-                
-                
+
+
     def put(self, packet):
         self.packet_count += 1
         buffer_futur_size = self.buffer_size + packet.size
@@ -181,12 +181,12 @@ class QueuedServer(object):
 
     def attach(self, destination):
         """ Method to set a destination for the serviced packets
-        
+
         Args:
-            destination (QueuedServer || XMonitor): 
-        """        
+            destination (QueuedServer || XMonitor):
+        """
         self.destination=destination
-        
+
 class Channel(object):
     def __init__(self, env, name, service_rate, collision, debug=False):
         self.env = env
@@ -197,32 +197,32 @@ class Channel(object):
         self.busy = False
         self.debug = debug
         self.packet_list = []
-        
+
     def add_sender(self, sender):
         self.senders_list.append(sender)
         self.busy = True
         if len(self.senders_list) > 1 and self.collision:
             self.broadcast_collision()
-        
+
     def remove_sender(self, sender):
         self.senders_list.remove(sender)
         if len(self.senders_list) == 0:
             self.busy = False
-            
+
     def broadcast_collision(self):
         if self.debug:
             print("Broadcast_collision")
         for sender in self.senders_list:
             sender.collision = True
-            
-        
+
+
 
 class QueuedServerMonitor(object):
-    """ A monitor for a QueuedServer. Observes the packets in service and in 
-        the queue and records that info in the sizes[] list. The monitor looks at the queued server 
+    """ A monitor for a QueuedServer. Observes the packets in service and in
+        the queue and records that info in the sizes[] list. The monitor looks at the queued server
         at time intervals given by the sampling dist.
 
-        
+
         Attributes:
         env (simpy.Environment):
             Simulation environment
@@ -231,10 +231,10 @@ class QueuedServerMonitor(object):
         sample_distribution (callable):
             Function that returns the successive inter-sampling times
         sizes (list[int]):
-            List of the successive number of elements in queue. Elements can be packet or bytes 
-            depending on the attribute count_bytes 
+            List of the successive number of elements in queue. Elements can be packet or bytes
+            depending on the attribute count_bytes
         count_bytes (bool):
-            If set counts number of bytes instead of number of packets 
+            If set counts number of bytes instead of number of packets
     """
     def __init__(self, env, queued_server, sample_distribution=lambda:1, count_bytes=False):
         self.env= env
@@ -244,7 +244,7 @@ class QueuedServerMonitor(object):
         self.sizes= []
         self.time_count=0
         self.action= env.process(self.run())
-        
+
 
     def run(self):
         while True:
@@ -255,68 +255,80 @@ class QueuedServerMonitor(object):
             else:
                 total= len(self.queued_server.buffer.items) + self.queued_server.busy
             self.sizes.append(total)
-            
+
 
 
 if __name__=="__main__":
     # Link capacity 64kbps
     process_rate= 64000/8 # => 8 kBytes per second
     # Packet length exponentially distributed with average 400 bytes
-    dist_size= lambda:expovariate(1/400) 
-    # Packet inter-arrival time exponentially distributed 
+    dist_size= lambda:expovariate(1/400)
+    # Packet inter-arrival time exponentially distributed
     gen_dist= lambda:expovariate(7.5) # 15 packets per second
-    
-    random_delay_aloha = lambda:uniform(process_rate/dist_size()-10,process_rate/dist_size()+10)
-    
-    nb_simulations = 10
-    simulation_time = 100
-    packet_drop_ratio1 = []
-    packet_drop_ratio2 = []
-    packet_drop_ratio3 = []
+
+
+    max_d = 50
+    d_list = np.arange(0,max_d,5)
+
     latency = []
-    for i in range(nb_simulations):
-        env= simpy.Environment()
-        src1= Source(env, "Source 1",gen_distribution=gen_dist,size_distribution=dist_size,debug=False)
-        src2= Source(env, "Source 2",gen_distribution=gen_dist,size_distribution=dist_size,debug=False)
-        ch= Channel(env,"Channel", service_rate=process_rate, collision=True, debug=False)
-        qs1= QueuedServer(env,"Router1", channel=ch, random_delay=random_delay_aloha, 
-                          buffer_max_size=math.inf, service_rate=process_rate,debug=False)
-        qs2= QueuedServer(env,"Router2", channel=ch, random_delay=random_delay_aloha, 
-                          buffer_max_size=math.inf, service_rate=process_rate,debug=False)
-        # Link Source 1 to Router 1
-        src1.attach(qs1)
-        src2.attach(qs2)
-        # Associate a monitor to Router 1
-        qs1_monitor=QueuedServerMonitor(env,qs1,sample_distribution=lambda:1,count_bytes=False)
-        qs2_monitor=QueuedServerMonitor(env,qs2,sample_distribution=lambda:1,count_bytes=False)
-        #ch_monitor=QueuedServerMonitor(env,ch,sample_distribution=lambda:1,count_bytes=False)
-        env.run(until=100)
-        print("Packets: %d, Dropped packets: %d" % (src1.packet_count + src2.packet_count, 
-                                                    qs1.packets_drop + qs2.packets_drop))
-        
-        #Latency
-        simulation_latency = []
-        for i,v in enumerate(ch.packet_list):
-            simulation_latency.append(v.output_timestamp - v.generation_timestamp)
-        latency.append(np.mean(simulation_latency))
-        
-        #Packet drop ratio
-        packet_drop_ratio1.append(qs1.packets_drop/qs1.packet_count)
-        packet_drop_ratio2.append(qs2.packets_drop/qs2.packet_count)
-        #packet_drop_ratio3.append(ch.packet_count/(ch.packet_count - ch.packets_drop))
-        
+    for d in d_list:
+        random_delay_aloha = lambda:uniform(0,d)
+        packet_drop_ratio1 = []
+        packet_drop_ratio2 = []
+        packet_drop_ratio3 = []
+        latency_intermediate = []
+
+        simulation_time = 100
+        nb_simulations = 5
+        for i in range(nb_simulations):
+            env= simpy.Environment()
+            src1= Source(env, "Source 1",gen_distribution=gen_dist,size_distribution=dist_size,debug=False)
+            src2= Source(env, "Source 2",gen_distribution=gen_dist,size_distribution=dist_size,debug=False)
+            ch= Channel(env,"Channel", service_rate=process_rate, collision=True, debug=False)
+            qs1= QueuedServer(env,"Router1", channel=ch, random_delay=random_delay_aloha,
+                              buffer_max_size=math.inf, service_rate=process_rate,debug=False)
+            qs2= QueuedServer(env,"Router2", channel=ch, random_delay=random_delay_aloha,
+                              buffer_max_size=math.inf, service_rate=process_rate,debug=False)
+            # Link Source 1 to Router 1
+            src1.attach(qs1)
+            src2.attach(qs2)
+            # Associate a monitor to Router 1
+            qs1_monitor=QueuedServerMonitor(env,qs1,sample_distribution=lambda:1,count_bytes=False)
+            qs2_monitor=QueuedServerMonitor(env,qs2,sample_distribution=lambda:1,count_bytes=False)
+            env.run(until=simulation_time)
+            #print("Packets: %d, Dropped packets: %d" % (src1.packet_count + src2.packet_count,
+            #                                            qs1.packets_drop + qs2.packets_drop))
+
+            #Latency
+            simulation_latency = []
+            for i,v in enumerate(ch.packet_list):
+                simulation_latency.append(v.output_timestamp - v.generation_timestamp)
+            if (len(simulation_latency) > 0):
+                latency_intermediate.append(np.mean(simulation_latency))
+
+            #Packet drop ratio
+            packet_drop_ratio1.append(qs1.packets_drop/qs1.packet_count)
+            packet_drop_ratio2.append(qs2.packets_drop/qs2.packet_count)
+        latency.append(np.mean(latency_intermediate))
+
+    plt.xlabel("d")
+    plt.ylabel("Latency")
+    plt.title("Latency depending on random delay")
+    plt.plot(d_list,latency)
+    plt.show()
+
     #Latency
     mean_latency = np.mean(latency)
     bound = 3*np.std(latency)/np.sqrt(nb_simulations)
     print("Mean latency: {}".format(round(mean_latency,3)))
     print("Confidence interval (99%): [{}, {}]".format(round(mean_latency - bound,3), round(mean_latency + bound,3)))
-    
+
     #Packet drop ratio
     mean_packet_drop_ratio1 = np.mean(packet_drop_ratio1)
     bound = 3*np.std(packet_drop_ratio2)/np.sqrt(nb_simulations)
     print("Packet drop ratio for Router1: {}".format(round(mean_packet_drop_ratio1,3)))
     print("Confidence interval (99%): [{}, {}]".format(round(mean_packet_drop_ratio1 - bound,3), round(mean_packet_drop_ratio1 + bound,3)))
-    
+
     mean_packet_drop_ratio2 = np.mean(packet_drop_ratio2)
     bound = 3*np.std(packet_drop_ratio2)/np.sqrt(nb_simulations)
     print("Packet drop ratio for Router2: {}".format(round(mean_packet_drop_ratio2,3)))
