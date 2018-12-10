@@ -151,6 +151,8 @@ class QueuedServer(object):
             yield self.env.timeout(packet.size/self.service_rate)
             self.channel.remove_sender(self)
             packet.output_timestamp= env.now
+
+
             if self.destination is None:
                 self.packet_list.append(packet)
             if (not self.collision):
@@ -267,7 +269,7 @@ if __name__=="__main__":
     # Packet inter-arrival time exponentially distributed 
     gen_dist= lambda:expovariate(7.5) # 15 packets per second
     
-    random_delay_aloha = lambda:uniform(process_rate/dist_size()-10,process_rate/dist_size()+10)
+    random_delay_aloha = lambda:uniform(0,1)
     
     nb_simulations = 10
     simulation_time = 100
@@ -302,8 +304,8 @@ if __name__=="__main__":
         latency.append(np.mean(simulation_latency))
         
         #Packet drop ratio
-        packet_drop_ratio1.append(qs1.packets_drop/qs1.packet_count)
-        packet_drop_ratio2.append(qs2.packets_drop/qs2.packet_count)
+        packet_drop_ratio1.append(qs1.packets_drop/ (qs1.packet_count + qs1.packets_drop))
+        packet_drop_ratio2.append(qs2.packets_drop/ (qs2.packet_count + qs2.packets_drop))
         #packet_drop_ratio3.append(ch.packet_count/(ch.packet_count - ch.packets_drop))
         
     #Latency
