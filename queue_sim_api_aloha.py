@@ -261,9 +261,11 @@ if __name__=="__main__":
     gen_dist= lambda:expovariate(7.5) # 15 packets per second
 
 
-    max_d = 50
-    d_list = np.arange(0,max_d,5)
-
+    max_d = 100
+    d_list = np.arange(0,max_d,10)
+    nb_messages = []
+    sub_nbmessages = []
+    d_delays = []
     latency = []
     for d in d_list:
         random_delay_aloha = lambda:uniform(0,d)
@@ -272,7 +274,7 @@ if __name__=="__main__":
         packet_drop_ratio3 = []
         latency_intermediate = []
 
-        simulation_time = 100
+        simulation_time = 1000
         nb_simulations = 5
         for i in range(nb_simulations):
             env= simpy.Environment()
@@ -303,7 +305,9 @@ if __name__=="__main__":
             #Packet drop ratio
             packet_drop_ratio1.append(qs1.packets_drop/qs1.packet_count)
             packet_drop_ratio2.append(qs2.packets_drop/qs2.packet_count)
+            sub_nbmessages.append(qs1_monitor.sizes[-1] + qs2_monitor.sizes[-1])
         latency.append(np.mean(latency_intermediate))
+        nb_messages.append(np.mean(sub_nbmessages))
 
     plt.xlabel("d")
     plt.ylabel("Latency")
@@ -311,6 +315,12 @@ if __name__=="__main__":
     plt.plot(d_list,latency)
     plt.show()
 
+    plt.figure()
+    plt.xlabel("d")
+    plt.ylabel("Number of pending messages")
+    plt.title("Influence of delay in number of pending messages")
+    plt.plot(d_list,nb_messages)
+    plt.show()
     #Latency
     mean_latency = np.mean(latency)
     bound = 3*np.std(latency)/np.sqrt(nb_simulations)
