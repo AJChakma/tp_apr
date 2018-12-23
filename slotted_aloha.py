@@ -126,7 +126,7 @@ class QueuedServer(object):
     """
 
     def __init__(self, env, name, channel, buffer_max_size=None, service_rate=1000,
-                 debug=False, packet_list=[], random_delay=lambda:uniform(0,1)):
+                 debug=False, packet_list=[], random_delay=lambda:uniform(0,1), max_attempts=10):
         self.env= env
         self.name= name
         self.channel= channel
@@ -144,21 +144,25 @@ class QueuedServer(object):
         self.packet_list = []
         self.random_delay = random_delay
         self.slot_time = 400/service_rate #slot time fixed_message_size/service rate
+        self.max_attempts = max_attempts
 
     def run(self):
         """ Packet waiting & service loop
         """
+        attempts = 0
         waiting_packet = None
         while True:  
-            if waiting_packet is not None:
+            if waiting_packet is not None and attempts < self.max_attempts:
                 packet = waiting_packet
                 waiting_packet = None
+                attempts += 1
             else:
                 packet = yield self.buffer.get()
+                attempts = 0
             #Place the env in the slot's start  
             frac, whole = math.modf(self.env.now / self.slot_time)
             #print(t_now + ((1-frac) * self.slot_time))
-            yield self.env.timeout(self.env.now + ((1-frac) * self.slot_time))
+            yield self.env.timeout(((1-frac) * self.slot_time))
             self.channel.add_sender(self)
             #Normally collisions occurs during the begining of the transmision
             yield self.env.timeout(self.slot_time) 
@@ -417,7 +421,7 @@ if __name__=="__main__":
 
             sub_nbmessages.append(qs1_monitor.sizes[-1] + qs2_monitor.sizes[-1])
             throughput_intermediate.append(len(ch.packet_list)/simulation_time)
-        throughput.append(np.mean(throughput_intermediate))
+        throughput.append(np.mean(throughput_intermediate)/mu)
         latency.append(np.mean(latency_intermediate))
         nb_messages.append(np.mean(sub_nbmessages))
         packet_drop_av.append(np.mean(packet_drop_ratio_tot))
@@ -426,7 +430,7 @@ if __name__=="__main__":
     fig2.set_figwidth(15,True)
     fig2.set_figheight(4,True)
     fig2.suptitle("Slotted Aloha")
-    ax4.set_xlabel("Rho")
+    ax4.set_xlabel(r"$\rho$ at receiver")
     ax4.set_ylabel("Throughput")
     #ax4.set_ylim(0.95,1)
     ax4.set_title(r"Influence of $\rho$ on throughput")

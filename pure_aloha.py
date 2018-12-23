@@ -199,20 +199,16 @@ class Channel(object):
         self.senders_list = []
         self.service_rate = service_rate
         self.collision = collision
-        self.busy = False
         self.debug = debug
         self.packet_list = []
 
     def add_sender(self, sender):
         self.senders_list.append(sender)
-        self.busy = True
         if len(self.senders_list) > 1 and self.collision:
             self.broadcast_collision()
 
     def remove_sender(self, sender):
         self.senders_list.remove(sender)
-        if len(self.senders_list) == 0:
-            self.busy = False
 
     def broadcast_collision(self):
         if self.debug:
@@ -371,7 +367,6 @@ if __name__=="__main__":
     random.seed(42)
     process_rate= 64000/8 # => 8 kBytes per second
     dist_size= lambda:expovariate(1/400)
-    d = 15
     lambda_list = np.arange(1,15,0.5)
     mu = process_rate/400
     rho_list = [2*lambda_list[i]/mu for i,_ in enumerate(lambda_list)]
@@ -380,7 +375,6 @@ if __name__=="__main__":
     latency = []
     packet_drop_av = []
     throughput = []
-    real_lambda = []
     for lambd in lambda_list:
         random_delay_aloha = lambda:uniform(0,lambd)
         packet_drop_ratio1 = []
@@ -388,9 +382,8 @@ if __name__=="__main__":
         packet_drop_ratio_tot = []
         latency_intermediate = []
         throughput_intermediate = []
-        real_lambda_intermediate = []
     
-        simulation_time = 10
+        simulation_time = 100
         nb_simulations = 10
         for i in range(nb_simulations):
             env= simpy.Environment()
@@ -426,8 +419,6 @@ if __name__=="__main__":
     
             sub_nbmessages.append(qs1_monitor.sizes[-1] + qs2_monitor.sizes[-1])
             throughput_intermediate.append(len(ch.packet_list)/simulation_time)
-            real_lambda_intermediate.append((qs1.packet_count + qs2.packet_count)/simulation_time)
-        real_lambda.append(np.mean(real_lambda_intermediate))
         throughput.append(np.mean(throughput_intermediate)/mu)
         latency.append(np.mean(latency_intermediate))
         nb_messages.append(np.mean(sub_nbmessages))
@@ -437,7 +428,7 @@ if __name__=="__main__":
     fig2.set_figwidth(15,True)
     fig2.set_figheight(4,True)
     fig2.suptitle("Pure Aloha")
-    ax4.set_xlabel("Lambda")
+    ax4.set_xlabel(r"$\rho$ at receiver")
     ax4.set_ylabel("Throughput")
     #ax4.set_ylim(0.95,1)
     ax4.set_title(r"Influence of $\rho$ on throughput")
