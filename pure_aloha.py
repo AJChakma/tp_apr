@@ -6,6 +6,7 @@
 import simpy
 import math
 import numpy as np
+import random
 from random import expovariate, uniform
 import matplotlib.pyplot as plt
 
@@ -117,7 +118,7 @@ class QueuedServer(object):
     """
 
     def __init__(self, env, name, channel, buffer_max_size=None, service_rate=1000,
-                 debug=False, packet_list=[], random_delay=lambda:uniform(0,1)):
+                 debug=False, packet_list=[], random_delay=lambda:uniform(0,1), max_attempts=10):
         self.env= env
         self.name= name
         self.channel= channel
@@ -134,18 +135,22 @@ class QueuedServer(object):
         self.action= env.process(self.run())
         self.packet_list = []
         self.random_delay = random_delay
+        self.max_attempts = max_attempts
 
     def run(self):
         """ Packet waiting & service loop
 
         """
+        attempts = 0
         waiting_packet = None
         while True:
-            if waiting_packet is not None:
+            if waiting_packet is not None and attempts < self.max_attempts:
                 packet = waiting_packet
                 waiting_packet = None
+                attempts += 1
             else:
                 packet = yield self.buffer.get()
+                attempts = 0
             self.channel.add_sender(self)
             yield self.env.timeout(packet.size/self.service_rate)
             self.channel.remove_sender(self)
@@ -256,107 +261,136 @@ class QueuedServerMonitor(object):
             self.sizes.append(total)
 
 if __name__=="__main__":
-    # Link capacity 64kbps
-    process_rate= 64000/8 # => 8 kBytes per second
-    # Packet length exponentially distributed with average 400 bytes
-    dist_size= lambda:expovariate(1/400)
-    # Packet inter-arrival time exponentially distributed
-    gen_dist= lambda:expovariate(7.5) # 15 packets per second
-
-
-    max_d = 100
-    d_list = np.arange(0,max_d,10)
-    nb_messages = []
-    sub_nbmessages = []
-    d_delays = []
-    latency = []
-    packet_drop_av = []
-    for d in d_list:
-        random_delay_aloha = lambda:uniform(0,d)
-        packet_drop_ratio1 = []
-        packet_drop_ratio2 = []
-        packet_drop_ratio_tot = []
-        latency_intermediate = []
-
-        simulation_time = 100
-        nb_simulations = 10
-        for i in range(nb_simulations):
-            env= simpy.Environment()
-            src1= Source(env, "Source 1",gen_distribution=gen_dist,size_distribution=dist_size,debug=False)
-            src2= Source(env, "Source 2",gen_distribution=gen_dist,size_distribution=dist_size,debug=False)
-            ch= Channel(env,"Channel", service_rate=process_rate, collision=True, debug=False)
-            qs1= QueuedServer(env,"Router1", channel=ch, random_delay=random_delay_aloha,
-                              buffer_max_size=math.inf, service_rate=process_rate,debug=False)
-            qs2= QueuedServer(env,"Router2", channel=ch, random_delay=random_delay_aloha,
-                              buffer_max_size=math.inf, service_rate=process_rate,debug=False)
-            # Link Source 1 to Router 1
-            src1.attach(qs1)
-            src2.attach(qs2)
-            # Associate a monitor to Router 1
-            qs1_monitor=QueuedServerMonitor(env,qs1,sample_distribution=lambda:1,count_bytes=False)
-            qs2_monitor=QueuedServerMonitor(env,qs2,sample_distribution=lambda:1,count_bytes=False)
-            env.run(until=simulation_time)
-            #print("Packets: %d, Dropped packets: %d" % (src1.packet_count + src2.packet_count,
-            #                                            qs1.packets_drop + qs2.packets_drop))
-
-            #Latency
-            simulation_latency = []
-            for i,v in enumerate(ch.packet_list):
-                simulation_latency.append(v.output_timestamp - v.generation_timestamp)
-            if (len(simulation_latency) > 0):
-                latency_intermediate.append(np.mean(simulation_latency))
-
-            #Packet drop ratio
-            packet_drop_ratio1.append(qs1.packets_drop/ (qs1.packet_count + qs1.packets_drop))
-            packet_drop_ratio2.append(qs2.packets_drop/ (qs2.packet_count + qs2.packets_drop))
-            packet_drop_ratio_tot.append((qs1.packets_drop + qs2.packets_drop) / (qs1.packet_count + qs1.packets_drop + qs2.packet_count + qs2.packets_drop))
-
-            sub_nbmessages.append(qs1_monitor.sizes[-1] + qs2_monitor.sizes[-1])
-        latency.append(np.mean(latency_intermediate))
-        nb_messages.append(np.mean(sub_nbmessages))
-        packet_drop_av.append(np.mean(packet_drop_ratio_tot))
-
-    fig, (ax1, ax2, ax3) = plt.subplots(1,3)
-    fig.set_figwidth(15,True)    
-    fig.set_figheight(4,True)
-    fig.suptitle("Pure Aloha")
-    ax1.set_xlabel("d (s)")
-    ax1.set_ylabel("Latency (s)")
-    ax1.set_ylim(0,50)
-    ax1.set_title("Influence of delay on latency")
-    ax1.plot(d_list,latency)
-
-    ax2.set_xlabel("d (s)")
-    ax2.set_ylabel("Number of pending messages")
-    ax2.set_ylim(500,1500)
-    ax2.set_title("Influence of delay on number of pending messages")
-    ax2.plot(d_list,nb_messages)
-
-    ax3.set_xlabel("d (s)")
-    ax3.set_ylabel("Total drop ratio")
-    ax3.set_ylim(0,1)
-    ax3.set_title("Influence of delay on drop ratio")
-    ax3.plot(d_list,packet_drop_av)
-    fig.show()
     
+    plt.close('all')
+    
+#    # Link capacity 64kbps
+#    process_rate= 64000/8 # => 8 kBytes per second
+#    # Packet length exponentially distributed with average 400 bytes
+#    dist_size= lambda:expovariate(1/400)
+#    # Packet inter-arrival time exponentially distributed
+#    gen_dist= lambda:expovariate(7.5) # 15 packets per second
+#
+#
+#    max_d = 100
+#    d_list = np.arange(0,max_d,10)
+#    nb_messages = []
+#    sub_nbmessages = []
+#    latency = []
+#    packet_drop_av = []
+#    for d in d_list:
+#        random_delay_aloha = lambda:uniform(0,d)
+#        packet_drop_ratio1 = []
+#        packet_drop_ratio2 = []
+#        packet_drop_ratio_tot = []
+#        latency_intermediate = []
+#
+#        simulation_time = 100
+#        nb_simulations = 10
+#        for i in range(nb_simulations):
+#            env= simpy.Environment()
+#            src1= Source(env, "Source 1",gen_distribution=gen_dist,size_distribution=dist_size,debug=False)
+#            src2= Source(env, "Source 2",gen_distribution=gen_dist,size_distribution=dist_size,debug=False)
+#            ch= Channel(env,"Channel", service_rate=process_rate, collision=True, debug=False)
+#            qs1= QueuedServer(env,"Router1", channel=ch, random_delay=random_delay_aloha,
+#                              buffer_max_size=math.inf, service_rate=process_rate,debug=False)
+#            qs2= QueuedServer(env,"Router2", channel=ch, random_delay=random_delay_aloha,
+#                              buffer_max_size=math.inf, service_rate=process_rate,debug=False)
+#            # Link Source 1 to Router 1
+#            src1.attach(qs1)
+#            src2.attach(qs2)
+#            # Associate a monitor to Router 1
+#            qs1_monitor=QueuedServerMonitor(env,qs1,sample_distribution=lambda:1,count_bytes=False)
+#            qs2_monitor=QueuedServerMonitor(env,qs2,sample_distribution=lambda:1,count_bytes=False)
+#            env.run(until=simulation_time)
+#            #print("Packets: %d, Dropped packets: %d" % (src1.packet_count + src2.packet_count,
+#            #                                            qs1.packets_drop + qs2.packets_drop))
+#
+#            #Latency
+#            simulation_latency = []
+#            for i,v in enumerate(ch.packet_list):
+#                simulation_latency.append(v.output_timestamp - v.generation_timestamp)
+#            if (len(simulation_latency) > 0):
+#                latency_intermediate.append(np.mean(simulation_latency))
+#
+#            #Packet drop ratio
+#            packet_drop_ratio1.append(qs1.packets_drop/ (qs1.packet_count + qs1.packets_drop))
+#            packet_drop_ratio2.append(qs2.packets_drop/ (qs2.packet_count + qs2.packets_drop))
+#            packet_drop_ratio_tot.append((qs1.packets_drop + qs2.packets_drop) / (qs1.packet_count + qs1.packets_drop + qs2.packet_count + qs2.packets_drop))
+#
+#            sub_nbmessages.append(qs1_monitor.sizes[-1] + qs2_monitor.sizes[-1])
+#        latency.append(np.mean(latency_intermediate))
+#        nb_messages.append(np.mean(sub_nbmessages))
+#        packet_drop_av.append(np.mean(packet_drop_ratio_tot))
+#
+#    fig, (ax1, ax2, ax3) = plt.subplots(1,3)
+#    fig.set_figwidth(15,True)    
+#    fig.set_figheight(4,True)
+#    fig.suptitle("Pure Aloha")
+#    ax1.set_xlabel("d (s)")
+#    ax1.set_ylabel("Latency (s)")
+#    ax1.set_ylim(0,50)
+#    ax1.set_title("Influence of delay on latency")
+#    ax1.plot(d_list,latency)
+#
+#    ax2.set_xlabel("d (s)")
+#    ax2.set_ylabel("Number of pending messages")
+#    #ax2.set_ylim(0,1500)
+#    ax2.set_title("Influence of delay on number of pending messages")
+#    ax2.plot(d_list,nb_messages)
+#
+#    ax3.set_xlabel("d (s)")
+#    ax3.set_ylabel("Total drop ratio")
+#    ax3.set_ylim(0,1)
+#    ax3.set_title("Influence of delay on drop ratio")
+#    ax3.plot(d_list,packet_drop_av)
+#    fig.show()
+#    
+#    round_power = 3
+#    #Latency
+#    mean_latency = np.mean(latency)
+#    bound = 3*np.std(latency)/np.sqrt(nb_simulations)
+#    print("Mean latency: {}".format(round(mean_latency,round_power)))
+#    print("Confidence interval (99%): [{}, {}]".format(round(mean_latency - bound,round_power),
+#                                round(mean_latency + bound,round_power)))
+#
+#    #Packet drop ratio
+#    mean_packet_drop_ratio1 = np.mean(packet_drop_ratio1)
+#    bound = 3*np.std(packet_drop_ratio2)/np.sqrt(nb_simulations)
+#    print("Packet drop ratio for Router1: {}".format(round(mean_packet_drop_ratio1,round_power)))
+#    print("Confidence interval (99%): [{}, {}]".format(round(mean_packet_drop_ratio1 - bound,round_power), 
+#                                round(mean_packet_drop_ratio1 + bound,round_power)))
+#
+#    mean_packet_drop_ratio2 = np.mean(packet_drop_ratio2)
+#    bound = 3*np.std(packet_drop_ratio2)/np.sqrt(nb_simulations)
+#    print("Packet drop ratio for Router2: {}".format(round(mean_packet_drop_ratio2,round_power)))
+#    print("Confidence interval (99%): [{}, {}]".format(round(mean_packet_drop_ratio2 - bound,round_power), 
+#                                round(mean_packet_drop_ratio2 + bound,round_power)))
+     
     # ---------- Throughput analysis along Rho ----------    
-    d = 30
-    lambda_list = np.arange(1,35,2)
+    random.seed(42)
+    process_rate= 64000/8 # => 8 kBytes per second
+    dist_size= lambda:expovariate(1/400)
+    d = 15
+    lambda_list = np.arange(1,15,0.5)
     mu = process_rate/400
-    rho_list = [lambda_list[i]/mu for i,_ in enumerate(lambda_list)]
+    rho_list = [2*lambda_list[i]/mu for i,_ in enumerate(lambda_list)]
     nb_messages = []
     sub_nbmessages = []
     latency = []
     packet_drop_av = []
-    slot_time = 400/process_rate
+    throughput = []
+    real_lambda = []
     for lambd in lambda_list:
-        random_delay_aloha = lambda:uniform(0,d)
+        random_delay_aloha = lambda:uniform(0,lambd)
         packet_drop_ratio1 = []
         packet_drop_ratio2 = []
         packet_drop_ratio_tot = []
         latency_intermediate = []
-
-        simulation_time = 100
+        throughput_intermediate = []
+        real_lambda_intermediate = []
+    
+        simulation_time = 10
         nb_simulations = 10
         for i in range(nb_simulations):
             env= simpy.Environment()
@@ -376,52 +410,37 @@ if __name__=="__main__":
             #print("Next exp")
             env.run(until=simulation_time)
             #print("Packets: %d, Dropped packets: %d" % (src1.packet_count + src2.packet_count,
-
+    
             #Latency
             simulation_latency = []
             for i,v in enumerate(ch.packet_list):
                 simulation_latency.append(v.output_timestamp - v.generation_timestamp)
             if (len(simulation_latency) > 0):
                 latency_intermediate.append(np.mean(simulation_latency))
-
+    
             #Packet drop ratio
             packet_drop_ratio1.append(qs1.packets_drop/ (qs1.packet_count + qs1.packets_drop))
             packet_drop_ratio2.append(qs2.packets_drop/ (qs2.packet_count + qs2.packets_drop))
-            packet_drop_ratio_tot.append((qs1.packets_drop + qs2.packets_drop) / (qs1.packet_count + qs1.packets_drop + qs2.packet_count + qs2.packets_drop))
-
+            packet_drop_ratio_tot.append((qs1.packets_drop + qs2.packets_drop) / 
+                                         (qs1.packet_count + qs1.packets_drop + qs2.packet_count + qs2.packets_drop))
+    
             sub_nbmessages.append(qs1_monitor.sizes[-1] + qs2_monitor.sizes[-1])
+            throughput_intermediate.append(len(ch.packet_list)/simulation_time)
+            real_lambda_intermediate.append((qs1.packet_count + qs2.packet_count)/simulation_time)
+        real_lambda.append(np.mean(real_lambda_intermediate))
+        throughput.append(np.mean(throughput_intermediate)/mu)
         latency.append(np.mean(latency_intermediate))
         nb_messages.append(np.mean(sub_nbmessages))
         packet_drop_av.append(np.mean(packet_drop_ratio_tot))
-
-    throughput = [ 1 - el for el in packet_drop_av]
+    
     fig2, ax4 = plt.subplots(1,1)
     fig2.set_figwidth(15,True)
     fig2.set_figheight(4,True)
     fig2.suptitle("Pure Aloha")
-    ax4.set_xlabel("Rho")
+    ax4.set_xlabel("Lambda")
     ax4.set_ylabel("Throughput")
-    ax4.set_ylim(0.95,1)
+    #ax4.set_ylim(0.95,1)
     ax4.set_title(r"Influence of $\rho$ on throughput")
     ax4.plot(rho_list,throughput)
-
-    fig2.show()
     
-
-    round_power = 3
-    #Latency
-    mean_latency = np.mean(latency)
-    bound = 3*np.std(latency)/np.sqrt(nb_simulations)
-    print("Mean latency: {}".format(round(mean_latency,round_power)))
-    print("Confidence interval (99%): [{}, {}]".format(round(mean_latency - bound,round_power), round(mean_latency + bound,round_power)))
-
-    #Packet drop ratio
-    mean_packet_drop_ratio1 = np.mean(packet_drop_ratio1)
-    bound = 3*np.std(packet_drop_ratio2)/np.sqrt(nb_simulations)
-    print("Packet drop ratio for Router1: {}".format(round(mean_packet_drop_ratio1,round_power)))
-    print("Confidence interval (99%): [{}, {}]".format(round(mean_packet_drop_ratio1 - bound,round_power), round(mean_packet_drop_ratio1 + bound,round_power)))
-
-    mean_packet_drop_ratio2 = np.mean(packet_drop_ratio2)
-    bound = 3*np.std(packet_drop_ratio2)/np.sqrt(nb_simulations)
-    print("Packet drop ratio for Router2: {}".format(round(mean_packet_drop_ratio2,round_power)))
-    print("Confidence interval (99%): [{}, {}]".format(round(mean_packet_drop_ratio2 - bound,round_power), round(mean_packet_drop_ratio2 + bound,round_power)))
+    fig2.show()
